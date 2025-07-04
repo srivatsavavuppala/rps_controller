@@ -8,7 +8,7 @@ export default function Home() {
           RPS Playground
         </h1>
         <p className="text-center text-muted-foreground mt-1 text-sm">
-          A dynamic simulation of Rock, Paper, Scissors.
+          An interactive simulation where you control the chaos. Set the number of elements, adjust the speed, and watch them battle!
         </p>
       </header>
       <RpsPlayground />

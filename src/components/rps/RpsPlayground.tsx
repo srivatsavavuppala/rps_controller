@@ -67,25 +67,44 @@ export default function RpsPlayground() {
   const [speed, setSpeed] = useState(1);
   const [isSimulating, setIsSimulating] = useState(false);
 
+  const counts = useMemo(() => {
+    return elements.reduce((acc, el) => {
+      acc[el.type]++;
+      return acc;
+    }, { rock: 0, paper: 0, scissor: 0 });
+  }, [elements]);
+
+  const isFinished = useMemo(() => {
+    if (elements.length === 0) return false;
+    return counts.rock === elements.length || counts.paper === elements.length || counts.scissor === elements.length;
+  }, [elements, counts]);
+
   const handleReset = useCallback(() => {
+    setIsSimulating(false);
     if (!containerRef.current) return;
     const { width, height } = containerRef.current.getBoundingClientRect();
     if (width > 0 && height > 0) {
       setElements(createInitialElements(numElements, width, height));
-      setIsSimulating(true);
     }
   }, [numElements]);
+  
+  const handleToggleSimulation = () => {
+    if (isFinished) return;
+    setIsSimulating(prev => !prev);
+  };
 
   useEffect(() => {
     if (!containerRef.current || isInitialized.current) return;
-
+    
+    // Set up initial elements without starting simulation
     const { width, height } = containerRef.current.getBoundingClientRect();
     if (width > 0 && height > 0) {
       setElements(createInitialElements(10, width, height));
-      setIsSimulating(true);
+      setIsSimulating(false); 
       isInitialized.current = true;
     }
   }, []);
+
 
   const runAnimation = useCallback(() => {
     setElements(prevElements => {
@@ -156,18 +175,12 @@ export default function RpsPlayground() {
     animationFrameId.current = requestAnimationFrame(runAnimation);
   }, [speed]);
 
-  const counts = useMemo(() => {
-    return elements.reduce((acc, el) => {
-      acc[el.type]++;
-      return acc;
-    }, { rock: 0, paper: 0, scissor: 0 });
-  }, [elements]);
 
   useEffect(() => {
-    if (elements.length > 0 && (counts.rock === elements.length || counts.paper === elements.length || counts.scissor === elements.length)) {
+    if (isFinished) {
         setIsSimulating(false);
     }
-  }, [elements, counts]);
+  }, [isFinished]);
 
   useEffect(() => {
     if (isSimulating) {
@@ -184,6 +197,14 @@ export default function RpsPlayground() {
     };
   }, [isSimulating, runAnimation]);
 
+  const winner = useMemo(() => {
+    if (!isFinished) return null;
+    if (counts.rock > 0) return 'Rock';
+    if (counts.paper > 0) return 'Paper';
+    if (counts.scissor > 0) return 'Scissors';
+    return null;
+  }, [isFinished, counts]);
+
   return (
     <div className="flex-grow flex flex-col min-h-0">
       <RpsCounter counts={counts} />
@@ -196,6 +217,16 @@ export default function RpsPlayground() {
             <p>Loading simulation...</p>
           </div>
         )}
+        {isFinished && winner && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm z-20">
+            <div className="text-center p-8 bg-card rounded-lg shadow-2xl animate-in fade-in-0 zoom-in-95">
+                <h2 className="text-4xl font-bold font-headline text-primary mb-2">
+                    {winner} Wins!
+                </h2>
+                <p className="text-muted-foreground">The simulation has ended. Press Reset to play again.</p>
+            </div>
+        </div>
+        )}
       </div>
       <RpsControls
         speed={speed}
@@ -203,7 +234,9 @@ export default function RpsPlayground() {
         numElements={numElements}
         onNumElementsChange={setNumElements}
         onReset={handleReset}
+        onToggleSimulation={handleToggleSimulation}
         isSimulating={isSimulating}
+        isFinished={isFinished}
       />
     </div>
   );
