@@ -4,8 +4,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { Element, ElementType } from './types';
 import RpsElement from './RpsElement';
 import RpsCounter from './RpsCounter';
+import RpsControls from './RpsControls';
 
-const NUM_ELEMENTS_PER_TYPE = 10;
 const ELEMENT_SIZE = 40;
 const MIN_SPEED = 0.5;
 const MAX_SPEED = 1.2;
@@ -33,38 +33,58 @@ const getWinner = (type1: ElementType, type2: ElementType): ElementType | null =
   return null;
 };
 
+const createInitialElements = (numPerType: number, width: number, height: number): Element[] => {
+  const initialElements: Element[] = [];
+  const types: ElementType[] = ['rock', 'paper', 'scissor'];
+
+  if (width === 0 || height === 0 || !numPerType) return [];
+
+  types.forEach(type => {
+    for (let i = 0; i < numPerType; i++) {
+      const angle = Math.random() * 2 * Math.PI;
+      const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
+      initialElements.push({
+        id: crypto.randomUUID(),
+        type,
+        x: Math.random() * (width - ELEMENT_SIZE) + ELEMENT_SIZE / 2,
+        y: Math.random() * (height - ELEMENT_SIZE) + ELEMENT_SIZE / 2,
+        dx: Math.cos(angle) * speed,
+        dy: Math.sin(angle) * speed,
+        size: ELEMENT_SIZE,
+      });
+    }
+  });
+  return initialElements;
+};
+
 export default function RpsPlayground() {
   const [elements, setElements] = useState<Element[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationFrameId = useRef<number>();
   const isInitialized = useRef(false);
 
+  const [numElements, setNumElements] = useState(10);
+  const [speed, setSpeed] = useState(1);
+  const [isSimulating, setIsSimulating] = useState(false);
+
+  const handleReset = useCallback(() => {
+    if (!containerRef.current) return;
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    if (width > 0 && height > 0) {
+      setElements(createInitialElements(numElements, width, height));
+      setIsSimulating(true);
+    }
+  }, [numElements]);
+
   useEffect(() => {
     if (!containerRef.current || isInitialized.current) return;
 
     const { width, height } = containerRef.current.getBoundingClientRect();
-    if (width === 0 || height === 0) return;
-
-    const initialElements: Element[] = [];
-    const types: ElementType[] = ['rock', 'paper', 'scissor'];
-
-    types.forEach(type => {
-      for (let i = 0; i < NUM_ELEMENTS_PER_TYPE; i++) {
-        const angle = Math.random() * 2 * Math.PI;
-        const speed = MIN_SPEED + Math.random() * (MAX_SPEED - MIN_SPEED);
-        initialElements.push({
-          id: crypto.randomUUID(),
-          type,
-          x: Math.random() * (width - ELEMENT_SIZE) + ELEMENT_SIZE / 2,
-          y: Math.random() * (height - ELEMENT_SIZE) + ELEMENT_SIZE / 2,
-          dx: Math.cos(angle) * speed,
-          dy: Math.sin(angle) * speed,
-          size: ELEMENT_SIZE,
-        });
-      }
-    });
-    setElements(initialElements);
-    isInitialized.current = true;
+    if (width > 0 && height > 0) {
+      setElements(createInitialElements(10, width, height));
+      setIsSimulating(true);
+      isInitialized.current = true;
+    }
   }, []);
 
   const runAnimation = useCallback(() => {
@@ -78,8 +98,8 @@ export default function RpsPlayground() {
       const changes = new Map<string, ElementType>();
       
       for (const el of newElements) {
-        el.x += el.dx;
-        el.y += el.dy;
+        el.x += el.dx * speed;
+        el.y += el.dy * speed;
 
         if (el.x - el.size / 2 < 0 && el.dx < 0) {
             el.dx *= -1;
@@ -134,18 +154,7 @@ export default function RpsPlayground() {
     });
 
     animationFrameId.current = requestAnimationFrame(runAnimation);
-  }, []);
-
-  useEffect(() => {
-    if (isInitialized.current) {
-        animationFrameId.current = requestAnimationFrame(runAnimation);
-    }
-    return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current);
-      }
-    };
-  }, [isInitialized.current, runAnimation]);
+  }, [speed]);
 
   const counts = useMemo(() => {
     return elements.reduce((acc, el) => {
@@ -153,6 +162,27 @@ export default function RpsPlayground() {
       return acc;
     }, { rock: 0, paper: 0, scissor: 0 });
   }, [elements]);
+
+  useEffect(() => {
+    if (elements.length > 0 && (counts.rock === elements.length || counts.paper === elements.length || counts.scissor === elements.length)) {
+        setIsSimulating(false);
+    }
+  }, [elements, counts]);
+
+  useEffect(() => {
+    if (isSimulating) {
+        animationFrameId.current = requestAnimationFrame(runAnimation);
+    } else {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    }
+    return () => {
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current);
+      }
+    };
+  }, [isSimulating, runAnimation]);
 
   return (
     <div className="flex-grow flex flex-col min-h-0">
@@ -167,6 +197,14 @@ export default function RpsPlayground() {
           </div>
         )}
       </div>
+      <RpsControls
+        speed={speed}
+        onSpeedChange={setSpeed}
+        numElements={numElements}
+        onNumElementsChange={setNumElements}
+        onReset={handleReset}
+        isSimulating={isSimulating}
+      />
     </div>
   );
 }
